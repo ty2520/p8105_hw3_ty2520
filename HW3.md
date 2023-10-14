@@ -34,6 +34,7 @@ library(dplyr)
 
 ``` r
 library(ggplot2)
+library(tidyr)
 data("instacart")
 instacart = 
   instacart |> 
@@ -192,4 +193,116 @@ ggplot(subset_data, aes(x = data_value, fill = response)) +
   theme_minimal()
 ```
 
-![](HW3_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](HW3_files/figure-gfm/unnamed-chunk-8-1.png)<!-- --> \# Question 3
+
+``` r
+demographic_df <- read.csv("~/Desktop/P8105/p8105_hw3_ty2520/nhanes_covar.csv",skip = 4) |>
+  janitor::clean_names()
+accel_df <- read.csv("~/Desktop/P8105/p8105_hw3_ty2520/nhanes_accel.csv") |>
+  janitor::clean_names()
+```
+
+``` r
+demo_df <- demographic_df |>
+  mutate(sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female"))) |>
+  mutate(education = factor(education, levels = c(1, 2, 3), labels = c("Less than high school", "High school equivalent", "More than high school"))) |>
+  filter(age >= 21)
+merged_data = left_join(demo_df,accel_df, by = "seqn")
+```
+
+``` r
+education_summary <- merged_data |>
+  group_by(education, sex) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = sex, values_from = count) 
+```
+
+    ## `summarise()` has grouped output by 'education'. You can override using the
+    ## `.groups` argument.
+
+``` r
+# Print the summary table
+print(education_summary)
+```
+
+    ## # A tibble: 3 × 3
+    ## # Groups:   education [3]
+    ##   education               Male Female
+    ##   <fct>                  <int>  <int>
+    ## 1 Less than high school     28     29
+    ## 2 High school equivalent    36     23
+    ## 3 More than high school     56     59
+
+``` r
+age_distribution_plot <- merged_data |>
+  ggplot(aes(x = age, fill = sex)) +
+  geom_histogram(binwidth = 5, position = "dodge") +
+  facet_wrap(~education) +
+  labs(title = "Age Distribution by Education and Sex", x = "Age", y = "Count") +
+  theme_minimal()
+
+print(age_distribution_plot)
+```
+
+![](HW3_files/figure-gfm/unnamed-chunk-12-1.png)<!-- --> Most age groups
+in the less than high school education group showed similar distribution
+of number of male and female participants except for the group around
+40. Most age groups in the high school or equivalent education group
+showed similar distribution of number of male and female participants.
+Most age groups in the more than high school education group showed
+similar distribution of number of male and female participants except
+for the age group around 30.
+
+``` r
+activity_summary <- merged_data |>
+  group_by(seqn, sex, education, age) |>
+  summarize(total_activity = sum(c_across(starts_with("min")), na.rm = TRUE))
+```
+
+    ## `summarise()` has grouped output by 'seqn', 'sex', 'education'. You can
+    ## override using the `.groups` argument.
+
+``` r
+activity_plot <- activity_summary |>
+  ggplot(aes(x = age, y = total_activity)) +
+  geom_point(aes(color = sex), size = 3) +
+  facet_wrap(~education, ncol = 2) +
+  geom_smooth(method = "lm", se = FALSE,aes(group = sex, color = sex)) +  # Add a linear regression line
+  labs(title = "Total Activity vs. Age by Education Level",
+       x = "Age", y = "Total Activity") +
+  theme_minimal()
+
+print(activity_plot)
+```
+
+    ## `geom_smooth()` using formula = 'y ~ x'
+
+![](HW3_files/figure-gfm/unnamed-chunk-13-1.png)<!-- --> We can see from
+the above plot that as the education level increases, the total activity
+for both male and female declines more slowly. Females with less than
+high school education level have a significant decline in total activity
+compared to other groups.
+
+``` r
+activity_data_long <- merged_data |>
+  pivot_longer(cols = starts_with("min"), names_to = "time", values_to = "activity")
+
+# Create the plot
+activity_plot <- activity_data_long |>
+  ggplot(aes(x = time, y = activity, color = sex)) +
+  geom_line() +
+  facet_wrap(~education, ncol = 1) +
+  labs(title = "24-Hour Activity Time Courses by Education Level",
+       x = "Time of Day", y = "Activity Level") +
+  theme_minimal() +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red"))  # Set custom colors for sex
+
+# Print the plot
+print(activity_plot)
+```
+
+![](HW3_files/figure-gfm/unnamed-chunk-14-1.png)<!-- --> For the less
+than high school and the more than high school group, female and male
+participants’ activity levels are similar, while for the more than high
+school group, male participants have a peak of activity level in the
+morning.
